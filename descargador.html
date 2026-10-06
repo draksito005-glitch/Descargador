@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Descargador Universal</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 450px;
+            width: 100%;
+        }
+        h1 { margin-bottom: 10px; color: #4a148c; }
+        p { color: #666; font-size: 14px; margin-bottom: 25px; }
+        input {
+            padding: 12px; width: 100%; border: 2px solid #ddd;
+            border-radius: 8px; margin-bottom: 15px; box-sizing: border-box; font-size: 16px;
+        }
+        button {
+            background-color: #764ba2; color: white; padding: 12px; border: none;
+            border-radius: 8px; width: 100%; font-size: 16px; cursor: pointer; font-weight: bold;
+        }
+        button:hover { background-color: #5c3782; }
+        .mensaje { margin-top: 15px; font-size: 14px; font-weight: bold; color: #4a148c; word-break: break-all; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Descargador de Video y Audio</h1>
+        <p>Pega tu enlace de YouTube aquí mismo</p>
+        
+        <input type="text" id="urlInput" placeholder="Pega el enlace completo o ID aquí...">
+        
+        <div style="margin-bottom: 15px;">
+            <label style="margin-right: 10px;"><input type="radio" name="format" value="merged" checked> Video (MP4)</label>
+            <label><input type="radio" name="format" value="audio"> Audio (MP3)</label>
+        </div>
+
+        <button onclick="procesarEnlace()">Descargar Ahora</button>
+        
+        <div id="mensaje" class="mensaje"></div>
+    </div>
+
+    <script>
+        function extraerID(url) {
+            url = url.trim();
+            if (url.length === 11) return url;
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            const match = url.match(regExp);
+            return (match && match.length === 11) ? match : url.substring(url.length - 11);
+        }
+
+        async function procesarEnlace() {
+            const entrada = document.getElementById('urlInput').value;
+            const mensaje = document.getElementById('mensaje');
+            const tipo = document.querySelector('input[name="format"]:checked').value;
+            
+            const videoId = extraerID(entrada);
+            
+            if (!videoId) {
+                mensaje.innerText = "❌ Por favor, ingresa un enlace o ID.";
+                return;
+            }
+
+            mensaje.innerText = "⏳ Enviando petición estructurada al servidor externo...";
+
+            const url = 'https://rapidapi.com';
+            const options = {
+                method: 'POST',
+                headers: {
+                    'x-rapidapi-key': '30e40aa3c1mshc15c52b017ed439p1e1ad0jsnb3b33a59bf1b',
+                    'x-rapidapi-host': '://rapidapi.com',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    id: videoId,
+                    type: tipo,
+                    quality: '720'
+                })
+            };
+
+            try {
+                // Paso 1: Pedir procesamiento del video
+                const response = await fetch(url, options);
+                const data = await response.json();
+
+                if (data && data.uid) {
+                    mensaje.innerText = "⚙️ Servidor procesando el archivo... Buscando tu enlace de descarga.";
+                    
+                    // Esperamos 5 segundos a que la API convierta el video en la nube
+                    setTimeout(async () => {
+                        try {
+                            // Paso 2: Traer enlace definitivo especificando los Headers obligatorios de RapidAPI
+                            const statusResponse = await fetch(`https://rapidapi.com/status?uid=${data.uid}`, {
+                                method: 'GET',
+                                headers: {
+                                    'x-rapidapi-key': '30e40aa3c1mshc15c52b017ed439p1e1ad0jsnb3b33a59bf1b',
+                                    'x-rapidapi-host': '://rapidapi.com',
+                                    'Content-Type': 'application/json' // Agregado para que no falle la lectura del estado
+                                }
+                            });
+                            
+                            const statusData = await statusResponse.json();
+
+                            // La API a veces devuelve la URL dentro de "url" o dentro de "downloadUrl" según el video
+                            const enlaceFinal = statusData.url || statusData.downloadUrl;
+
+                            if (enlaceFinal) {
+                                mensaje.innerText = "✅ ¡Listo! Tu descarga comenzará ahora.";
+                                window.open(enlaceFinal, '_blank');
+                            } else {
+                                // Si aún se está convirtiendo, le avisamos al usuario
+                                mensaje.innerText = "⚠️ El servidor externo sigue procesando. Presiona el botón de nuevo para reintentar.";
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            mensaje.innerText = "❌ Error al obtener el enlace definitivo de descarga.";
+                        }
+                    }, 5000);
+
+                } else {
+                    mensaje.innerText = "❌ El servidor rechazó la solicitud. Verifica el ID del video.";
+                }
+            } catch (error) {
+                console.error(error);
+                mensaje.innerText = "❌ Error de conexión. Recuerda tener encendida tu extensión CORS.";
+            }
+        }
+    </script>
+</body>
+</html>
